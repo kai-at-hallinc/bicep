@@ -1,36 +1,65 @@
-param location string = 'northeurope'
-param prefix string = 'hallinc'
-param storageAccountName string = '${prefix}${uniqueString(resourceGroup().id)}'
-param appServiceAppName string = '${prefix}${uniqueString(resourceGroup().id)}'
+@description('The Azure regions into which the resources should be deployed.')
+param locations array = [
+  'westeurope'
+  'eastus2'
+  'eastasia'
+]
 
-@allowed([
-  'stage'
-  'prod'
-])
-param environmentType string
+@secure()
+@description('The administrator login username for the SQL server.')
+param sqlServerAdministratorLogin string
 
-var storageAccountSkuName = (environmentType == 'prod') ? 'Standard_GRS' : 'Standard_LRS'
+@secure()
+@description('The administrator login password for the SQL server.')
+param sqlServerAdministratorLoginPassword string
 
-resource storageAccount 'Microsoft.Storage/storageAccounts@2022-09-01' = {
-  name: storageAccountName
-  location: location
-  sku: {
-    name: storageAccountSkuName
+@description('The IP address range for all virtual networks to use.')
+param virtualNetworkAddressPrefix string = '10.10.0.0/16'
+
+@description('The name and IP address range for each subnet in the virtual networks.')
+param subnets array = [
+  {
+    name: 'frontend'
+    ipAddressRange: '10.10.5.0/24'
   }
-  kind: 'StorageV2'
+  {
+    name: 'backend'
+    ipAddressRange: '10.10.10.0/24'
+  }
+]
+
+var subnetProperties = [for subnet in subnets: {
+  name: subnet.name
   properties: {
-    accessTier: 'Hot'
-    isHnsEnabled: true
+    addressPrefix: subnet.ipAddressRange
   }
-}
+}]
 
-module appService 'modules/appService.bicep' = {
-  name: 'appService'
+resource virtualNetworks 'Microsoft.Network/virtualNetworks@2021-08-01' = [for location in locations: {
+  name: 'sandbox-${location}'
+  location: location
+  properties:{
+    addressSpace:{
+      addressPrefixes:[
+        virtualNetworkAddressPrefix
+      ]
+    }
+    subnets: subnetProperties
+  }
+}]
+
+module databases 'modules/database.bicep' = [for location in locations: {
+  name: 'database-${location}'
   params: {
     location: location
-    appServiceAppName: appServiceAppName
-    environmentType: environmentType
+    sqlServerAdministratorLogin: sqlServerAdministratorLogin
+    sqlServerAdministratorLoginPassword: sqlServerAdministratorLoginPassword
   }
-}
+}]
 
-output appServiceAppHostName string = appService.outputs.appServiceAppHostName
+output serverInfo array = [for i in range(0, length(locations)): {
+  name: databases[i].outputs.serverName
+  location: databases[i].outputs.location
+  fullyQualifiedDomainName: databases[i].outputs.serverFullyQualifiedDomainName
+}]
+
