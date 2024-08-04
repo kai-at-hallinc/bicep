@@ -1,8 +1,7 @@
 @description('The Azure regions into which the resources should be deployed.')
 param locations array = [
   'westeurope'
-  'eastus2'
-  'eastasia'
+  'northeurope'
 ]
 
 @secure()
@@ -62,4 +61,3 @@ output serverInfo array = [for i in range(0, length(locations)): {
   location: databases[i].outputs.location
   fullyQualifiedDomainName: databases[i].outputs.serverFullyQualifiedDomainName
 }]
-
