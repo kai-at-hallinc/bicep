@@ -2,19 +2,10 @@
     "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-        "vulnerabilityAssessments_Default_storageContainerPath": {
-            "value": null
-        },
-        "servers_hallinc_sql_server_name": {
-            "value": null
-        },
         "virtualNetworks_analytics_vnet_name": {
             "value": null
         },
         "networkSecurityGroups_databricksnsgtyutag6kcruvm_externalid": {
-            "value": null
-        },
-        "privateEndpoints_private_sql_ep_externalid": {
             "value": null
         }
     }

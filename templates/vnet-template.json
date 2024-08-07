@@ -1,0 +1,208 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "virtualNetworks_analytics_vnet_name": {
+            "defaultValue": "analytics-vnet",
+            "type": "String"
+        },
+        "networkSecurityGroups_databricksnsgtyutag6kcruvm_externalid": {
+            "defaultValue": "/subscriptions/a011ea95-c1fe-4125-9cef-82abcac7f740/resourceGroups/hallinc-rg/providers/Microsoft.Network/networkSecurityGroups/databricksnsgtyutag6kcruvm",
+            "type": "String"
+        }
+    },
+    "variables": {},
+    "resources": [
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "apiVersion": "2023-11-01",
+            "name": "[parameters('virtualNetworks_analytics_vnet_name')]",
+            "location": "swedencentral",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "10.0.0.0/16"
+                    ]
+                },
+                "encryption": {
+                    "enabled": false,
+                    "enforcement": "AllowUnencrypted"
+                },
+                "subnets": [
+                    {
+                        "name": "PEP",
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_analytics_vnet_name'), 'PEP')]",
+                        "properties": {
+                            "addressPrefixes": [
+                                "10.0.0.0/24"
+                            ],
+                            "serviceEndpoints": [
+                                {
+                                    "service": "Microsoft.AzureCosmosDB",
+                                    "locations": [
+                                        "*"
+                                    ]
+                                }
+                            ],
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Disabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        },
+                        "type": "Microsoft.Network/virtualNetworks/subnets"
+                    },
+                    {
+                        "name": "databricks-private-subnet",
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_analytics_vnet_name'), 'databricks-private-subnet')]",
+                        "properties": {
+                            "addressPrefix": "10.0.3.0/24",
+                            "networkSecurityGroup": {
+                                "id": "[parameters('networkSecurityGroups_databricksnsgtyutag6kcruvm_externalid')]"
+                            },
+                            "delegations": [
+                                {
+                                    "name": "databricks-del-xjhdk72m2ysfy",
+                                    "id": "[concat(resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_analytics_vnet_name'), 'databricks-private-subnet'), '/delegations/databricks-del-xjhdk72m2ysfy')]",
+                                    "properties": {
+                                        "serviceName": "Microsoft.Databricks/workspaces"
+                                    },
+                                    "type": "Microsoft.Network/virtualNetworks/subnets/delegations"
+                                }
+                            ],
+                            "privateEndpointNetworkPolicies": "Disabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        },
+                        "type": "Microsoft.Network/virtualNetworks/subnets"
+                    },
+                    {
+                        "name": "databricks-public-subnet",
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_analytics_vnet_name'), 'databricks-public-subnet')]",
+                        "properties": {
+                            "addressPrefix": "10.0.2.0/24",
+                            "networkSecurityGroup": {
+                                "id": "[parameters('networkSecurityGroups_databricksnsgtyutag6kcruvm_externalid')]"
+                            },
+                            "delegations": [
+                                {
+                                    "name": "databricks-del-n24r7733q3xto",
+                                    "id": "[concat(resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_analytics_vnet_name'), 'databricks-public-subnet'), '/delegations/databricks-del-n24r7733q3xto')]",
+                                    "properties": {
+                                        "serviceName": "Microsoft.Databricks/workspaces"
+                                    },
+                                    "type": "Microsoft.Network/virtualNetworks/subnets/delegations"
+                                }
+                            ],
+                            "privateEndpointNetworkPolicies": "Disabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        },
+                        "type": "Microsoft.Network/virtualNetworks/subnets"
+                    },
+                    {
+                        "name": "AzureBastionSubnet",
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_analytics_vnet_name'), 'AzureBastionSubnet')]",
+                        "properties": {
+                            "addressPrefix": "10.0.1.0/26",
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Disabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled",
+                            "defaultOutboundAccess": true
+                        },
+                        "type": "Microsoft.Network/virtualNetworks/subnets"
+                    }
+                ],
+                "virtualNetworkPeerings": [],
+                "enableDdosProtection": false
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2023-11-01",
+            "name": "[concat(parameters('virtualNetworks_analytics_vnet_name'), '/AzureBastionSubnet')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworks_analytics_vnet_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "10.0.1.0/26",
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Disabled",
+                "privateLinkServiceNetworkPolicies": "Enabled",
+                "defaultOutboundAccess": true
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2023-11-01",
+            "name": "[concat(parameters('virtualNetworks_analytics_vnet_name'), '/databricks-private-subnet')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworks_analytics_vnet_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "10.0.3.0/24",
+                "networkSecurityGroup": {
+                    "id": "[parameters('networkSecurityGroups_databricksnsgtyutag6kcruvm_externalid')]"
+                },
+                "delegations": [
+                    {
+                        "name": "databricks-del-xjhdk72m2ysfy",
+                        "id": "[concat(resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_analytics_vnet_name'), 'databricks-private-subnet'), '/delegations/databricks-del-xjhdk72m2ysfy')]",
+                        "properties": {
+                            "serviceName": "Microsoft.Databricks/workspaces"
+                        },
+                        "type": "Microsoft.Network/virtualNetworks/subnets/delegations"
+                    }
+                ],
+                "privateEndpointNetworkPolicies": "Disabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2023-11-01",
+            "name": "[concat(parameters('virtualNetworks_analytics_vnet_name'), '/databricks-public-subnet')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworks_analytics_vnet_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "10.0.2.0/24",
+                "networkSecurityGroup": {
+                    "id": "[parameters('networkSecurityGroups_databricksnsgtyutag6kcruvm_externalid')]"
+                },
+                "delegations": [
+                    {
+                        "name": "databricks-del-n24r7733q3xto",
+                        "id": "[concat(resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_analytics_vnet_name'), 'databricks-public-subnet'), '/delegations/databricks-del-n24r7733q3xto')]",
+                        "properties": {
+                            "serviceName": "Microsoft.Databricks/workspaces"
+                        },
+                        "type": "Microsoft.Network/virtualNetworks/subnets/delegations"
+                    }
+                ],
+                "privateEndpointNetworkPolicies": "Disabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2023-11-01",
+            "name": "[concat(parameters('virtualNetworks_analytics_vnet_name'), '/PEP')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworks_analytics_vnet_name'))]"
+            ],
+            "properties": {
+                "addressPrefixes": [
+                    "10.0.0.0/24"
+                ],
+                "serviceEndpoints": [
+                    {
+                        "service": "Microsoft.AzureCosmosDB",
+                        "locations": [
+                            "*"
+                        ]
+                    }
+                ],
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Disabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        }
+    ]
+}
