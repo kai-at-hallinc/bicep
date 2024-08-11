@@ -1,65 +1,73 @@
-targetScope = 'subscription'
+@description('The Azure region into which the Cosmos DB resources should be deployed.')
+param location string = resourceGroup().location
 
-param virtualNetworkName string
-param virtualNetworkAddressPrefix string
+@description('The globally unique name of the Cosmos DB account.(lowercase, number, hyphen)')
+@minLength(3)
+@maxLength(44)
+param cosmosDBAccountName string = 'hallinc-${uniqueString(resourceGroup().id)}'
 
-var policyDefinitionName = 'Allow-AB-series-VMs'
-var policyAssignmentName = 'Allow-AB-series-VMs'
-var resourceGroupName = 'networking-rg'
+@description('A descriptive name for the role definition.')
+param roleDefinitionFriendlyName string = 'Read and Write'
 
-resource policyDefinition 'Microsoft.Authorization/policyDefinitions@2020-03-01' = {
-  name: policyDefinitionName
+@description('The list of actions that the role definition permits.')
+param roleDefinitionDataActions array = [
+  'Microsoft.DocumentDB/databaseAccounts/readMetadata'
+  'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/*'
+]
+
+@description('The object ID of the Azure AD principal that should be granted access by the role definition.')
+param roleAssignmentPrincipalId string
+
+var roleDefinitionName = guid('sql-role-definition', cosmosDBAccount.id)
+var roleAssignmentName = guid('sql-role-assignment', cosmosDBAccount.id)
+
+resource cosmosDBAccount 'Microsoft.DocumentDB/databaseAccounts@2021-04-15' = {
+  name: cosmosDBAccountName
+  kind: 'GlobalDocumentDB'
+  location: location
   properties: {
-    policyType: 'Custom'
-    mode: 'All'
-    parameters: {}
-    policyRule: {
-      if: {
-        allOf: [
-          {
-            field: 'type'
-            equals: 'Microsoft.Compute/virtualMachines'
-          }
-          {
-            not: {
-              anyOf: [
-                {
-                  field: 'Microsoft.Compute/virtualMachines/sku.name'
-                  like: 'Standard_A*'
-                }
-                {
-                  field: 'Microsoft.Compute/virtualMachines/sku.name'
-                  like: 'Standard_B*'
-                }
-              ]
-            }
-          }
-        ]
+    consistencyPolicy: {
+      defaultConsistencyLevel: 'Session'
+    }
+    locations: [
+      {
+        locationName: location
+        failoverPriority: 0
+        isZoneRedundant: false
       }
-      then: {
-        effect: 'Deny'
-      }
+    ]
+    databaseAccountOfferType: 'Standard'
+    enableAutomaticFailover: false
+    enableMultipleWriteLocations: false
+    backupPolicy: {
+      type: 'Continuous'
     }
   }
 }
 
-resource policyAssignment 'Microsoft.Authorization/policyAssignments@2020-03-01' = {
-  name: policyAssignmentName
+resource roleDefinition 'Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions@2021-04-15' = {
+  parent: cosmosDBAccount
+  name: roleDefinitionName
   properties: {
-    policyDefinitionId: policyDefinition.id
+    roleName: roleDefinitionFriendlyName
+    type: 'CustomRole'
+    assignableScopes: [
+      cosmosDBAccount.id
+    ]
+    permissions: [
+      {
+        dataActions: roleDefinitionDataActions
+      }
+    ]
   }
 }
 
-resource resourceGroup 'Microsoft.Resources/resourceGroups@2021-01-01' = {
-  name: resourceGroupName
-  location: deployment().location
-}
-
-module virtualNetwork 'modules/virtualNetwork.bicep' = {
-  scope: resourceGroup
-  name: 'virtualNetwork'
-  params: {
-    virtualNetworkName: virtualNetworkName
-    virtualNetworkAddressPrefix: virtualNetworkAddressPrefix
+resource roleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = {
+  parent: cosmosDBAccount
+  name: roleAssignmentName
+  properties: {
+    roleDefinitionId: roleDefinition.id
+    principalId: roleAssignmentPrincipalId
+    scope: cosmosDBAccount.id
   }
 }

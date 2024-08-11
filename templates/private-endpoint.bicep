@@ -3,15 +3,18 @@ param vnetName string = 'hallinc-vnet'
 param vnetAddressPrefix string = '10.0.0.0/16'
 param privateSubnetName string = 'hallinc-storage-subnet'
 param privateSubnetAddressPrefix string = '10.0.1.0/24'
-param privateEndpointName string = 'hallinc-private-endpoint'
+param storageEndpointName string = 'hallinc-private-endpoint'
+param databaseEndpointName string = 'hallinc-private-endpoint'
 param storageLinkName string = 'hallinc-storage-link'
 param databaseLinkName string = 'hallinc-sql-link'
 
 var storageDnsZoneName = environment().suffixes.storage
 var databaseDnsZoneName = environment().suffixes.sqlServerHostname
-var dnsZoneGroupName = 'hallinc-dns-zone'
+var storageDnsGroupName = 'hallinc-storage-dns-zone'
+var databaseDnsGroupName = 'hallinc-database-dns-zone'
 var location = resourceGroup().location
 var storageAccountName = toLower('${storageAccountPrefix}${uniqueString(resourceGroup().id)}')
+var sqlServerName = 'hallinc-sql-server'
 var RootContainerName = '${storageAccountName}/default/datalake'
 
 resource storageaccount 'Microsoft.Storage/storageAccounts@2021-02-01' = {
@@ -58,7 +61,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2019-11-01' = {
 }
 
 resource storageEndpoint 'Microsoft.Network/privateEndpoints@2022-01-01' = {
-  name: privateEndpointName
+  name: storageEndpointName
   location: location
   properties: {
     privateLinkServiceConnections: [
@@ -71,12 +74,24 @@ resource storageEndpoint 'Microsoft.Network/privateEndpoints@2022-01-01' = {
           ]
         }
       }
+    ]
+    subnet: {
+      id: resourceId('Microsoft.Network/virtualNetworks/subnets', vnet.name, privateSubnetName)
+    }
+  }
+}
+
+resource databaseEndpoint 'Microsoft.Network/privateEndpoints@2022-01-01' = {
+  name: databaseEndpointName
+  location: location
+  properties: {
+    privateLinkServiceConnections: [
       {
         name: databaseLinkName
         properties: {
-          privateLinkServiceId: resourceId('Microsoft.Storage/storageAccounts', storageAccountName)
+          privateLinkServiceId: resourceId('Microsoft.Sql/servers', sqlServerName)
           groupIds: [
-            'sqlServer'
+            'sqlServerHostname'
           ]
         }
       }
@@ -97,8 +112,8 @@ resource databaseDnsZone 'Microsoft.Network/privateDnsZones@2018-09-01' = {
   location: 'global'
 }
 
-resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-11-01' = {
-  name: dnsZoneGroupName
+resource storageDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-11-01' = {
+  name: storageDnsGroupName
   parent: storageEndpoint
   properties: {
     privateDnsZoneConfigs: [
@@ -108,6 +123,21 @@ resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneG
           privateDnsZoneId: storageDnsZone.id
         }
       }
+      {
+        name: 'databaseConfig'
+        properties: {
+          privateDnsZoneId: storageDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
+resource databaseDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-11-01' = {
+  name: databaseDnsGroupName
+  parent: databaseEndpoint
+  properties: {
+    privateDnsZoneConfigs: [
       {
         name: 'databaseConfig'
         properties: {
